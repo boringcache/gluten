@@ -104,8 +104,8 @@ jobs:
               ccache -sz
               bash dev/ci-velox-buildstatic-centos-7.sh
               ccache -s
+              cp .github/boringcache-velox-inputs.sha256 cpp/build/.boringcache-input-digest
             '
-          cp .github/boringcache-velox-inputs.sha256 cpp/build/.boringcache-input-digest
           test -d cpp/build/releases
           find cpp/build/releases -type f -print -quit | grep -q .
 

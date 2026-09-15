@@ -20,11 +20,11 @@ metadata-hints = [
   "project=apache-gluten",
   "issue=12743",
   "workload=velox-native-library",
-  "input=d7abf3ae6f37de4b61fb74a8a54cb97c39a892af65902c913ca9369324176166",
+  "input=16d9ceab541608eb45f858d3cb09c0245252e1acca89f6a25723702aea07c936",
 ]
 
 [entries.velox-native]
-tag = "velox-native-d7abf3ae6f37de4b61fb74a8a54cb97c39a892af65902c913ca9369324176166"
+tag = "velox-native-16d9ceab541608eb45f858d3cb09c0245252e1acca89f6a25723702aea07c936"
 path = "cpp/build"
 no-git = true
 

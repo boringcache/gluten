@@ -55,6 +55,8 @@ env:
   MVN_CMD: 'build/mvn -ntp'
   WGET_CMD: 'wget -nv'
   CCACHE_DIR: "${{ github.workspace }}/.ccache"
+  VELOX_IMAGE: docker.io/apache/gluten@sha256:a5cc0d65a40ae4e4cf9fbe200baaa1e494ebd01e2afdccbfdb00cc71eaaf490f
+  VELOX_COMMIT: 5e02332156f15759dc7d6ec1c8fa38b3ae96b956
   # spark.sql.ansi.enabled defaults to false.
   SPARK_ANSI_SQL_MODE: false
 
@@ -147,45 +149,103 @@ jobs:
   build-native-lib-centos-7:
     needs: detect-changes
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify the native-library identity
+        run: |
+          set -euo pipefail
+          expected=$(cat .github/boringcache-velox-inputs.sha256)
+          actual=$(
+            {
+              git ls-tree -r HEAD -- cpp dev ep/build-velox
+              printf '%s\n' \
+                "image=${VELOX_IMAGE}" \
+                "velox=${VELOX_COMMIT}" \
+                'NUM_THREADS=4' \
+                'command=bash dev/ci-velox-buildstatic-centos-7.sh'
+            } | sha256sum | cut -d ' ' -f 1
+          )
+          test "$actual" = "$expected"
+          remote_velox=$(git ls-remote https://github.com/IBM/velox.git dft-2026_09_10 | awk 'NR == 1 { print $1 }')
+          test "$remote_velox" = "$VELOX_COMMIT"
+      - name: Restore the shared native library from BoringCache
+        id: velox-cache
+        uses: boringcache/one@1039999c65011be670f5655e0e48ad556188ab12 # v1.30.4
+        with:
+          mode: archive
+          trust-policy: ${{ github.event_name == 'pull_request' && 'restore' || 'publish' }}
+          cache-profiles: velox-native
+          diagnostics: summary
+          fail-on-cache-error: false
+      - name: Validate the restored native library
+        id: native-cache
+        env:
+          BORINGCACHE_HIT: ${{ steps.velox-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          if [ "$BORINGCACHE_HIT" = "true" ] && \
+             cmp -s .github/boringcache-velox-inputs.sha256 cpp/build/.boringcache-input-digest && \
+             [ -d cpp/build/releases ] && \
+             find cpp/build/releases -type f -print -quit | grep -q .; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "Using the validated BoringCache native library."
+          else
+            rm -rf cpp/build
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            echo "No valid native-library cache was restored; Gluten will build it."
+          fi
       - name: Get Ccache from Apache Stash
+        if: steps.native-cache.outputs.hit != 'true'
         id: ccache-stash
         uses: apache/infrastructure-actions/stash/restore@69afc125e535c4c41e7f1b7470f583087e0f344b
         with:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-centos7-release-default-${{ hashFiles('ep/build-velox/src/**') }}
       - name: Get Ccache from actions/cache (fallback on Stash miss)
-        if: steps.ccache-stash.outputs.stash-hit != 'true'
-        uses: actions/cache/restore@v4
+        if: steps.native-cache.outputs.hit != 'true' && steps.ccache-stash.outputs.stash-hit != 'true'
+        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-centos7-release-default-${{github.sha}}
           restore-keys: |
             ccache-centos7-release-default
       - name: Build Gluten native libraries
+        if: steps.native-cache.outputs.hit != 'true'
         run: |
-          docker run -v $GITHUB_WORKSPACE:/work -w /work apache/gluten:vcpkg-centos-7-gcc13 bash -c "
+          docker run --rm -v "$GITHUB_WORKSPACE:/work" -w /work "$VELOX_IMAGE" bash -c "
             set -e
             yum install tzdata -y
             df -a
             cd /work
             export CCACHE_DIR=/work/.ccache
             export CCACHE_MAXSIZE=1G
+            export NUM_THREADS=4
             mkdir -p /work/.ccache
             ccache -sz
             bash dev/ci-velox-buildstatic-centos-7.sh
             ccache -s
+            cp .github/boringcache-velox-inputs.sha256 cpp/build/.boringcache-input-digest
           "
 
+          cmp .github/boringcache-velox-inputs.sha256 cpp/build/.boringcache-input-digest
+          test -d cpp/build/releases
+          find cpp/build/releases -type f -print -quit | grep -q .
+
       - name: "Save ccache"
-        if: always()
+        if: always() && steps.native-cache.outputs.hit != 'true'
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
         with:
           path: '${{ env.CCACHE_DIR }}'
           key: ccache-centos7-release-default-${{ hashFiles('ep/build-velox/src/**') }}
           include-hidden-files: true
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: velox-native-lib-centos-7-${{github.sha}}
           path: ./cpp/build/releases/

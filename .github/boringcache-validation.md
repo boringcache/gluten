@@ -74,6 +74,48 @@ repository.
 
 ## Results
 
-Full-workflow BoringCache results are pending. Do not use the earlier
-sequential validation run as evidence that the two upstream workflows avoid
-their duplicate native build.
+### Same-source cross-workflow reuse
+
+Velox x86
+[run 35021209096](https://github.com/boringcache/gluten/actions/runs/35021209096)
+bootstrapped the exact native-library entry at workflow commit
+`b02de0e0913f664945af42bb9387de48a2a868a3`. Its native job took 3m49s,
+including a 2m52s build with the existing Apache Stash ccache and a 5s
+BoringCache post step. The native job passed and its normal downstream x86
+matrix is still running.
+
+Delta
+[run 35023227002](https://github.com/boringcache/gluten/actions/runs/35023227002)
+then used the same source and input digest in the independent
+`delta_spark_ut.yml` workflow. BoringCache restored 685.22 MB and 2,400 files
+in 4.9s: 186ms for the archive graph, 3.4s for 111 blobs, and 1.3s to
+materialize the files. The complete BoringCache Action step, including CLI and
+OIDC setup, took 12s. Digest validation passed, and the workflow skipped both
+Apache Stash and the native build.
+
+The Delta native job took 52s, compared with 3m26s in exact-source upstream
+[run 34931227945](https://github.com/apache/gluten/actions/runs/34931227945),
+a 2m34s or 74.8% reduction. The BoringCache Delta workflow then passed its real
+bundle build, all eight test shards, and aggregation. It used 654.5
+runner-minutes and finished in 1h46m51s. Upstream used 668.1 runner-minutes and
+finished in 2h04m27s. The direct cache result is the 2m34s native-job reduction;
+bundle and test-shard variance also affects the 13.6 runner-minute and 17m36s
+whole-workflow differences.
+
+On the exact source, upstream x86
+[run 34919759644](https://github.com/apache/gluten/actions/runs/34919759644)
+spent 3m36s in its native job, including 2m43s in the native build, before five
+unrelated matrix jobs later reached the six-hour cancellation limit. Across
+the two upstream native jobs, x86 and Delta used 7m02s. The BoringCache pair
+used 4m41s because only x86 built the native library, a 2m21s or 33.4%
+reduction across the reported duplicate-build boundary.
+
+### Rolling native-input change
+
+Upstream commit `f04968b1083b12c0a13581fdaa36003b3fd1a87f` changes `cpp/**`
+and therefore produces a different full input digest. Delta
+[run 35033798917](https://github.com/boringcache/gluten/actions/runs/35033798917)
+correctly missed the earlier entry, restored Apache Stash, built the native
+library in 2m52s, embedded the new digest, and published the new entry. Its
+native job took 4m00s. The full rolling workflow and the matching x86 restore
+run are still pending.

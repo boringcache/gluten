@@ -17,6 +17,12 @@
 
 # BoringCache Velox cross-workflow validation
 
+## Issue-bounded result
+
+| Upstream pain | Exact experiment | Measured result | Bounded verdict |
+| --- | --- | --- | --- |
+| [Issue #12743](https://github.com/apache/gluten/issues/12743) reports that the independent Velox x86 and Delta workflows build the same CentOS 7 native library because workflow artifacts cannot cross the workflow-run boundary. | Run the complete x86 and Delta workflows with one content-addressed native archive: one workflow builds and publishes, and the sibling restores it. Repeat after a real native-input change to verify a miss, rebuild, and reverse-direction reuse. | At the exact upstream source, the two native jobs fell from 7m02s upstream to 4m41s with BoringCache, a 2m21s or 33.4% reduction. The Delta consumer restored 685.22 MB in 4.9s and took 52s. After the native-input change, Delta rebuilt and published; x86 restored 685.21 MB in 5.9s and took 36s. | This addresses the issue's duplicate native-build boundary. It does not establish that BoringCache makes the complete x86 or Delta workflow broadly faster; unrelated test variance, a Maven Central 404, and workflow concurrency cancellation affected the whole-workflow outcomes. |
+
 ## Upstream problem
 
 [Apache Gluten issue #12743](https://github.com/apache/gluten/issues/12743)

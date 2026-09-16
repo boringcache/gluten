@@ -117,5 +117,8 @@ and therefore produces a different full input digest. Delta
 [run 35033798917](https://github.com/boringcache/gluten/actions/runs/35033798917)
 correctly missed the earlier entry, restored Apache Stash, built the native
 library in 2m52s, embedded the new digest, and published the new entry. Its
-native job took 4m00s. The full rolling workflow and the matching x86 restore
-run are still pending.
+native job took 4m00s. The complete workflow passed its bundle build, all
+eight test shards, and aggregation. It used approximately 630.0 runner-minutes
+and finished in 2h06m32s. The whole-workflow difference from the first Delta
+run reflects bundle and test-shard variance and is not a cache-performance
+comparison. The matching x86 restore run is pending.

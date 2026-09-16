@@ -81,8 +81,9 @@ Velox x86
 bootstrapped the exact native-library entry at workflow commit
 `b02de0e0913f664945af42bb9387de48a2a868a3`. Its native job took 3m49s,
 including a 2m52s build with the existing Apache Stash ccache and a 5s
-BoringCache post step. The native job passed and its normal downstream x86
-matrix is still running.
+BoringCache post step. The native job passed. The complete x86 dispatch ended
+`cancelled` after 6h04m27s when five Spark jobs reached GitHub's six-hour job
+limit; the other 47 jobs passed. It used approximately 3,385.4 runner-minutes.
 
 Delta
 [run 35023227002](https://github.com/boringcache/gluten/actions/runs/35023227002)
@@ -105,10 +106,14 @@ whole-workflow differences.
 On the exact source, upstream x86
 [run 34919759644](https://github.com/apache/gluten/actions/runs/34919759644)
 spent 3m36s in its native job, including 2m43s in the native build, before five
-unrelated matrix jobs later reached the six-hour cancellation limit. Across
-the two upstream native jobs, x86 and Delta used 7m02s. The BoringCache pair
-used 4m41s because only x86 built the native library, a 2m21s or 33.4%
-reduction across the reported duplicate-build boundary.
+unrelated matrix jobs later reached the six-hour cancellation limit. That
+upstream run passed the same other 47 jobs, ended after 6h04m15s, and used
+approximately 3,089.3 runner-minutes. The additional BoringCache-fork runner
+time came from variance in unrelated jobs, including separate UDF and cuDF
+native builds; it is not evidence about the shared CentOS 7 archive. Across the
+two upstream native jobs, x86 and Delta used 7m02s. The BoringCache pair used
+4m41s because only x86 built the native library, a 2m21s or 33.4% reduction
+across the reported duplicate-build boundary.
 
 ### Rolling native-input change
 
@@ -121,4 +126,35 @@ native job took 4m00s. The complete workflow passed its bundle build, all
 eight test shards, and aggregation. It used approximately 630.0 runner-minutes
 and finished in 2h06m32s. The whole-workflow difference from the first Delta
 run reflects bundle and test-shard variance and is not a cache-performance
-comparison. The matching x86 restore run is pending.
+comparison.
+
+The independent x86
+[run 35043780706](https://github.com/boringcache/gluten/actions/runs/35043780706)
+then restored that rolling-source entry. Its native job took 36s. The internal
+restore took 5.9s for 685.21 MB and 2,400 files: 303ms for the archive graph,
+4.2s for 103 blobs, and 1.3s to materialize the files. Digest validation passed,
+the job skipped Apache Stash and native compilation, and the existing artifact
+upload passed.
+
+The rolling x86 dispatch ended `cancelled` after 1h04m52s with approximately
+1,566.1 runner-minutes. It had passed 44 jobs. One downstream TPC lane failed
+after Maven Central returned HTTP 404 for
+`apache-maven-3.9.16-bin.tar.gz`; the equivalent lane in the first x86 run had
+downloaded that exact file successfully five hours earlier. A delayed scheduled
+[run 35047979375](https://github.com/boringcache/gluten/actions/runs/35047979375)
+then started on the same commit and concurrency key, cancelled the remaining
+seven jobs, and was itself skipped. These failures happened after the native
+job had validated and uploaded the restored artifact.
+
+Across both source identities, the real workflow sequence was:
+
+| Native input | Publisher | Consumer | Combined native-job time |
+| --- | --- | --- | ---: |
+| `9f6dcb599` | x86: miss and build in 3m49s | Delta: restore in 52s | 4m41s |
+| `f04968b10` | Delta: miss and build in 4m00s | x86: restore in 36s | 4m36s |
+
+Each source change produced a distinct entry, each miss kept Apache Stash and
+the normal build fallback, and each sibling workflow consumed only the entry
+whose embedded full digest matched its inputs. Apache did not run either target
+workflow on `f04968b10`, so there is no same-revision upstream performance
+baseline for the rolling pair.

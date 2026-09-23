@@ -17,6 +17,12 @@
 
 # BoringCache Velox cross-workflow validation
 
+As of 23 September 2026, upstream's x86 native job builds with AlmaLinux 8,
+while the Delta job still builds with CentOS 7. The two jobs no longer produce
+the same native library. The cross-workflow measurements below describe the
+earlier source revision. Current validation retains the BoringCache cache in
+the Delta job and follows upstream's x86 workflow.
+
 ## Issue-bounded result
 
 | Upstream pain | Exact experiment | Measured result | Bounded verdict |

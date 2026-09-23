@@ -24,7 +24,7 @@ metadata-hints = [
 ]
 
 [entries.velox-native]
-tag = "velox-native-16d9ceab541608eb45f858d3cb09c0245252e1acca89f6a25723702aea07c936"
+tag = "velox-native-d7ca619559ea5d1327c2ff61c06002406763246b12b231d2d4aee5767b43312b"
 path = "cpp/build"
 no-git = true
 

@@ -287,6 +287,7 @@ jobs:
       - name: Save Ccache to Apache Stash
         # Comment runs use main's Stash scope; never overwrite it with PR output.
         if: ${{ always() && steps.native-cache.outputs.hit != 'true' && github.event_name != 'issue_comment' }}
+        continue-on-error: true
         uses: apache/infrastructure-actions/stash/save@0ba14156c9f4c3cfbe4b0c9f36339ab0f8d81e53
         with:
           path: '${{ env.CCACHE_DIR }}'
